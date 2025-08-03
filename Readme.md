@@ -122,6 +122,70 @@ python s3_uploader.py --config config.ini --mode MODE
 3. При повторном запуске в режиме 5 файлы не перезагружаются, если их хеш-сумма совпадает с уже загруженной версией
 4. Статистика по расширениям файлов выводится только в режимах 4 и 5
 
+## Особенности Yandex Cloud Object Storage
+- Аутентификация:
+  - Используйте IAM-ключи из сервисного аккаунта
+  - Или статические ключи доступа
+- Эндпоинт:
+  - https://storage.yandexcloud.net (для публичного доступа)
+  - Или https://<bucket-name>.storage.yandexcloud.net
+- Регион:
+  - Должен быть ru-central1 (или ru-central1-a/b/c для зон доступности)
+
+## Особенности при работе с YC S3
+- Имена бакетов:
+  - Должны быть уникальными глобально
+  - Только lowercase, цифры и дефисы
+  - Длина 3-63 символа
+- Лимиты:
+  - Максимальный размер файла по умолчанию - 5GB
+  - Для больших файлов нужно использовать multipart upload
+- Права доступа:
+  - Убедитесь, что сервисный аккаунт имеет права storage.editor
+
+## Пример готовой конфигурации для Yandex Cloud
+```text
+[S3]
+access_key = YCAJxxxxxxxxxxxxxxxxxxx
+secret_key = YCMxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+endpoint = https://storage.yandexcloud.net
+region = ru-central1
+bucket = my-backup-bucket
+
+[Directories]
+base_dir = /data/to/backup
+
+[Files]
+extensions = .pdf,.docx,.xlsx,.jpg,.png
+
+[Report]
+path = /var/log/s3-uploader/report.json
+
+[Exclusions]
+dir_exclusions = /etc/s3-uploader/exclude-dirs.json
+file_exclusions = /etc/s3-uploader/exclude-files.json
+filename_exclusions = /etc/s3-uploader/exclude-names.json
+```
+
+## Рекомендации по развертыванию в Yandex Cloud
+### Создайте сервисный аккаунт
+```bash
+yc iam service-account create --name s3-uploader
+```
+### Назначьте права
+```bash
+yc resource-manager folder add-access-binding \
+  --id <folder-id> \
+  --role storage.editor \
+  --subject serviceAccount:<service-account-id>
+```
+### Создайте статические ключи
+```bash
+yc iam access-key create --service-account-name s3-uploader
+```
+Скрипт готов к использованию с Yandex Cloud Object Storage. Основное внимание стоит уделить правильной настройке конфигурационного файла и прав доступа.
+
+
 ## Лицензия
 
 Этот проект распространяется под лицензией MIT.
