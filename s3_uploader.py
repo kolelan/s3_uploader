@@ -60,6 +60,34 @@ class S3Uploader:
             region_name=s3_config['region']
         )
 
+    def _transliterate(self, text: str) -> str:
+        """Transliterate Cyrillic characters to Latin, replace spaces and sanitize"""
+        translit_map = {
+            'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+            'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+            'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+            'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
+            'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+            'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'Yo',
+            'Ж': 'Zh', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
+            'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
+            'Ф': 'F', 'Х': 'H', 'Ц': 'Ts', 'Ч': 'Ch', 'Ш': 'Sh', 'Щ': 'Sch',
+            'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya',
+            ' ': '_',  # Заменяем пробелы на подчеркивания
+            '\\': '_',  # Заменяем обратные слеши
+            '/': '_',  # Заменяем прямые слеши
+        }
+
+        result = []
+        for char in text:
+            if char in translit_map:
+                result.append(translit_map[char])
+            elif ord(char) < 128:  # Оставляем ASCII символы
+                result.append(char)
+            else:  # Заменяем все остальные символы на _
+                result.append('_')
+        return ''.join(result)
+
     def _calculate_xxhash(self, filepath: str) -> str:
         """Calculate xxHash for a file"""
         h = xxhash.xxh64()
@@ -91,10 +119,13 @@ class S3Uploader:
         return True
 
     def _generate_s3_key(self, filepath: str) -> str:
-        """Generate S3 key for the file"""
+        """Generate S3 key for the file with transliterated path"""
         base_dir = self.config['directories']['base_dir']
         relative_path = os.path.relpath(filepath, base_dir)
-        return relative_path.replace('\\', '/')
+        # Transliterate each path component separately
+        parts = relative_path.split(os.sep)
+        transliterated_parts = [self._transliterate(part) for part in parts]
+        return '/'.join(transliterated_parts)
 
     def _check_s3_connection(self) -> bool:
         """Check connection to S3 bucket"""
@@ -121,6 +152,9 @@ class S3Uploader:
     def _upload_file_to_s3(self, filepath: str, s3_key: str, file_hash: str) -> bool:
         """Upload file to S3 with metadata"""
         try:
+            # Транслитерируем оригинальный путь для метаданных
+            safe_original_path = self._transliterate(filepath)
+
             self.s3_client.upload_file(
                 filepath,
                 self.config['s3']['bucket'],
@@ -128,7 +162,8 @@ class S3Uploader:
                 ExtraArgs={
                     'Metadata': {
                         'xxhash': file_hash,
-                        'original_path': filepath
+                        'original_path': safe_original_path,
+                        'transliterated_path': s3_key
                     }
                 }
             )
@@ -154,8 +189,10 @@ class S3Uploader:
             sent = self._upload_file_to_s3(filepath, s3_key, file_hash)
 
         file_data = {
-            "filePath": filepath,
-            "s3code": s3_key,
+            "originalPath": filepath,
+            "transliteratedPath": s3_key,
+            "originalFilename": filename,
+            "transliteratedFilename": os.path.basename(s3_key),
             "hash": file_hash,
             "date": datetime.now().isoformat(),
             "sent": sent if upload else needs_upload
@@ -164,16 +201,16 @@ class S3Uploader:
         return file_data
 
     def _save_report(self):
-        """Save report to JSON file"""
+        """Save report to JSON file with proper Unicode handling"""
         report_path = self.config['report']['path']
-        with open(report_path, 'w') as f:
-            json.dump(self.report_data, f, indent=2)
+        with open(report_path, 'w', encoding='utf-8') as f:
+            json.dump(self.report_data, f, indent=2, ensure_ascii=False)
 
     def _print_extension_stats(self):
         """Print statistics by file extensions"""
         ext_stats = {}
         for item in self.report_data:
-            ext = os.path.splitext(item['filePath'])[1].lower()
+            ext = os.path.splitext(item['originalPath'])[1].lower()
             if ext not in ext_stats:
                 ext_stats[ext] = {'total': 0, 'sent': 0}
 
