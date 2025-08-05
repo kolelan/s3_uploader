@@ -213,7 +213,7 @@ Pods/
 *.perspectivev3
 
 ### Docker ###
-docker-compose.yml
+
 docker-compose.*.yml
 !.env.example
 *.tar.gz
