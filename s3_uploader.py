@@ -43,22 +43,22 @@ class S3Uploader:
         except (FileNotFoundError, json.JSONDecodeError):
             return set()
 
-def _init_s3_client(self):
-    """Initialize S3 client with configured credentials"""
-    s3_config = self.config['s3']
+    def _init_s3_client(self):
+        """Initialize S3 client with configured credentials"""
+        s3_config = self.config['s3']
 
-    # Yandex Cloud specific validation
-    if 'yandexcloud.net' in s3_config['endpoint']:
-        if s3_config['region'] not in ('ru-central1', 'ru-central1-a', 'ru-central1-b', 'ru-central1-c'):
-            print("Warning: Yandex Cloud region should be ru-central1")
+        # Yandex Cloud specific validation
+        if 'yandexcloud.net' in s3_config['endpoint']:
+            if s3_config['region'] not in ('ru-central1', 'ru-central1-a', 'ru-central1-b', 'ru-central1-c'):
+                print("Warning: Yandex Cloud region should be ru-central1")
 
-    return boto3.client(
-        's3',
-        aws_access_key_id=s3_config['access_key'],
-        aws_secret_access_key=s3_config['secret_key'],
-        endpoint_url=s3_config['endpoint'],
-        region_name=s3_config['region']
-    )
+        return boto3.client(
+            's3',
+            aws_access_key_id=s3_config['access_key'],
+            aws_secret_access_key=s3_config['secret_key'],
+            endpoint_url=s3_config['endpoint'],
+            region_name=s3_config['region']
+        )
 
     def _calculate_xxhash(self, filepath: str) -> str:
         """Calculate xxHash for a file"""
